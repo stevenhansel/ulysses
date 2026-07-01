@@ -1,0 +1,10 @@
+{
+  "name": "ulysses",
+  "private": true,
+  "scripts": {
+    "web:dev": "pnpm --filter ulysses-web dev",
+    "web:build": "pnpm --filter ulysses-web build",
+    "web:test": "pnpm --filter ulysses-web test",
+    "web:lint": "pnpm --filter ulysses-web lint"
+  }
+}
