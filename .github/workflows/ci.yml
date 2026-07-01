@@ -1,0 +1,308 @@
+# =============================================================================
+# Ulysses CI/CD Pipeline
+#
+# Stages:
+#   1. Linting     — rustfmt + clippy (api), oxlint (web) — 2 parallel jobs
+#   2. Testing     — cargo test (api), vitest (web)        — 2 parallel jobs
+#   3. Docker      — build & push to ghcr.io (main only)   — after lint + test
+#   4. Security    — cargo audit, pnpm audit, trivy scan   — every 3 days (cron)
+# =============================================================================
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 0 */3 * *" # every 3 days at midnight UTC
+
+env:
+  CARGO_TERM_COLOR: always
+
+# ─── Jobs ───────────────────────────────────────────────────────────────────
+
+jobs:
+  # ── Linting ─────────────────────────────────────────────────────────────
+  lint-api:
+    name: Lint (API)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (rustfmt, clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Check formatting (rustfmt)
+        run: cargo fmt --all --check
+        working-directory: api
+
+      - name: Lint (clippy)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: api
+
+  lint-web:
+    name: Lint (Web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (oxlint)
+        run: pnpm web:lint
+
+  # ── Testing ──────────────────────────────────────────────────────────────
+  test-api:
+    name: Test (API)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            api/target
+          key: ${{ runner.os }}-cargo-api-${{ hashFiles('api/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-api-
+
+      - name: Run tests
+        run: cargo test
+        working-directory: api
+
+  test-web:
+    name: Test (Web)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm web:test
+
+  # ── Docker Build & Push (main only) ─────────────────────────────────────
+  docker:
+    name: Docker Build & Push
+    if: >
+      github.ref == 'refs/heads/main'
+      && github.event_name != 'schedule'
+    needs: [lint-api, lint-web, test-api, test-web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/stevenhansel/ulysses
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Security & Vulnerability Scanning (every 3 days) ────────────────────
+  # All three scan jobs run in parallel since they are independent.
+
+  security-rust:
+    name: Security Scan (Rust deps)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Cargo.lock if needed
+        working-directory: api
+        run: cargo generate-lockfile
+
+      # Official RustSec audit-check action — runs advisory database check
+      # and produces GitHub Security Tab alerts + PR annotations.
+      - name: Audit Rust dependencies
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          lockfile: api/Cargo.lock
+
+      # Also run cargo audit with JSON output for additional analysis
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Scan Rust dependencies (detailed JSON)
+        working-directory: api
+        continue-on-error: true
+        run: cargo audit --json > rust-audit-report.json || true
+
+      - name: Upload Rust audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-audit-report
+          path: api/rust-audit-report.json
+
+  security-npm:
+    name: Security Scan (npm deps)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Run pnpm audit (prints violations inline in workflow logs)
+      - name: Scan npm dependencies (pnpm audit)
+        run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+      # Use npm-audit-report to produce GitHub Security Tab alerts (SARIF).
+      # npm audit works on the node_modules tree installed by pnpm.
+      - name: Generate npm audit JSON
+        continue-on-error: true
+        run: |
+          cd web
+          npm audit --json > ../npm-audit.json 2>/dev/null || true
+
+      - name: Convert to SARIF (npm-audit-report)
+        if: success() || failure()
+        continue-on-error: true
+        run: |
+          if [ -f npm-audit.json ] && [ -s npm-audit.json ]; then
+            docker run --rm -v "$PWD:/work" -w /work \
+              ghcr.io/sen-ltd/npm-audit-report:latest \
+              npm-audit.json --format sarif --fail-on high \
+              > npm-audit.sarif 2>/dev/null || true
+          fi
+
+      - name: Upload SARIF to GitHub Security
+        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: npm-audit.sarif
+          category: npm-dependencies
+        continue-on-error: true
+
+  security-docker:
+    name: Security Scan (Docker image)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ghcr.io/stevenhansel/ulysses:latest
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: 1
+          severity: HIGH,CRITICAL
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: docker-image

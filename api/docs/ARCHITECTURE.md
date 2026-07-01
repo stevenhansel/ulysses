@@ -164,7 +164,73 @@ pub struct ApiDoc;
 3. Build `Context { config, db, ... }`
 4. Build merged router from all modules
 5. Mount Swagger UI with aggregated OpenAPI spec
-6. `axum::serve` with graceful shutdown (tokio signal)
+6. If `WEB_DIST` env var is set, mount a `ServeDir` fallback serving the pre-built web UI as a SPA (with `index.html` fallback for client-side routes)
+7. `axum::serve` with graceful shutdown (tokio signal)
+
+## Web UI Serving (Docker Deployment)
+
+In production (Docker), the API also serves the pre-built frontend as static files. This keeps the deployment to a single container with one process — no nginx or separate static file server needed.
+
+### How it works
+
+1. The Docker multi-stage build compiles the React/Vite frontend into `web/dist/`.
+2. The final runtime image includes both the API binary and the pre-built frontend at `/app/web-dist/`.
+3. When the container starts, the `WEB_DIST=/app/web-dist` environment variable tells the API to mount a `ServeDir` fallback service.
+4. All requests that don't match an API route (`/api/*`, `/docs`, `/api-docs/*`) fall through to the static file server, which:
+   - Serves actual files (JS, CSS, fonts, favicon) directly
+   - Serves `index.html` for any unrecognized path (SPA fallback for client-side routing)
+
+### Request routing (Docker)
+
+```
+  Request
+     │
+     ▼
+  Axum Router
+     │
+     ├── /api/*          →  API handler (profiles, health, WS, etc.)
+     ├── /docs           →  Swagger UI
+     ├── /api-docs/*     →  OpenAPI spec
+     └── /* (fallback)   →  ServeDir(/app/web-dist)
+                              ├── /assets/*        →  static files (JS, CSS, fonts)
+                              ├── /favicon.svg     →  favicon
+                              └── /* (not found)   →  index.html (SPA)
+```
+
+### Development vs Production
+
+| Aspect | Development | Production (Docker) |
+|--------|------------|-------------------|
+| Backend | `cargo run` on `:8000` | Same binary in container |
+| Frontend | `pnpm web:dev` on `:5173` with HMR, proxying `/api` → `:8000` | Pre-built static files served by the API binary |
+| Architecture | Two processes, separate ports | Single process, single port |
+| Hot reload | Yes (Vite HMR + `cargo watch`) | No (re-build image) |
+
+During development, the frontend and backend run **completely independently** — just as they did before Docker was introduced. The `WEB_DIST` env var is only set in the container, so the static file serving logic is a no-op in local dev.
+
+### Config
+
+The `WEB_DIST` environment variable controls the feature:
+
+```rust
+// In config.rs
+pub struct Config {
+    // ...
+    pub web_dist: Option<String>,  // None in dev, Some("/app/web-dist") in Docker
+}
+```
+
+```rust
+// In main.rs
+if let Some(web_dist) = &config.web_dist {
+    app = app.fallback_service(
+        ServeDir::new(web_dist)
+            .precompressed_gzip()
+            .append_index_html_on_directories(true)
+            .fallback(ServeFile::new(web_path.join("index.html"))),
+    );
+}
+```
 
 ## Module Registration
 
