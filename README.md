@@ -51,8 +51,11 @@ All metrics are exposed via both a web dashboard and a JSON API for integration 
 
 - **Rust** 1.88+ (MSRV for ts-rs)
 - **SQLite** (bundled automatically via `libsqlite3-sys`)
+- **Node.js** 22+ and **pnpm** 11+
 
 ### Getting started
+
+#### Backend (API)
 
 ```bash
 # Navigate to the API project
@@ -67,7 +70,21 @@ cargo run
 
 The server starts on `http://localhost:8000` by default (configurable via `HOST` and `PORT` in `.env`).
 
+#### Frontend (Web UI)
+
+```bash
+# Install dependencies from the monorepo root
+pnpm install
+
+# Start the Vite dev server (proxies /api to localhost:8000)
+pnpm web:dev
+```
+
+The web UI is served at `http://localhost:5173` with hot module replacement. API requests to `/api/*` are automatically proxied to the Rust backend at `http://localhost:8000` in development.
+
 ### Available commands
+
+#### Backend (`api/`)
 
 ```bash
 # Check compilation (fast, skips test compilation)
@@ -84,19 +101,55 @@ RUST_LOG=ulysses_api=debug cargo run
 
 # Watch mode (requires cargo-watch)
 cargo watch -x run
-```
 
-### Project structure
-
-The API backend lives under `api/` and follows a **layered architecture** (Controller → Service → Repository) inside feature modules. See [`api/docs/ARCHITECTURE.md`](api/docs/ARCHITECTURE.md) for the full breakdown.
-
-### Code quality
-
-```bash
 # Format
 cargo fmt
 
 # Lint
 cargo clippy -- -D warnings
 ```
+
+#### Frontend (`web/`)
+
+From the monorepo root, use the workspace scripts:
+
+```bash
+pnpm web:dev       # Start Vite dev server (HMR at localhost:5173)
+pnpm web:build     # Type-check + production build
+pnpm web:test      # Run all tests once
+pnpm web:lint      # Run oxlint
+```
+
+Or from the `web/` directory directly:
+
+```bash
+pnpm dev           # Vite dev server
+pnpm build         # tsc -b && vite build
+pnpm test          # Vitest single run
+pnpm test:watch    # Vitest watch mode
+pnpm lint          # oxlint
+pnpm preview       # Preview production build
+```
+
+### Project structure
+
+```
+ulysses/
+├── api/             # Rust API backend (axum, SQLite)
+│   ├── src/         # Layered architecture (Controller → Service → Repository)
+│   ├── migrations/  # SQLite database migrations
+│   └── docs/        # Architecture & design docs
+│
+├── web/             # React frontend (Vite, TanStack Router)
+│   ├── src/         # Routes, features, components, hooks, lib
+│   ├── tests/       # Test infrastructure (MSW, Vitest setup)
+│   └── docs/        # Architecture & design docs
+│
+├── package.json     # Root workspace scripts
+└── pnpm-workspace.yaml
+```
+
+The API backend follows a **layered architecture** (Controller → Service → Repository) inside feature modules. See [`api/docs/ARCHITECTURE.md`](api/docs/ARCHITECTURE.md) for the full breakdown.
+
+The web frontend uses a **feature-based layered architecture** (Routes → Features → Infrastructure → Shared). See [`web/docs/ARCHITECTURE.md`](web/docs/ARCHITECTURE.md) for the full breakdown.
 
