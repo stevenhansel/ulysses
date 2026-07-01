@@ -25,6 +25,7 @@ async fn test_app() -> (TestServer, SqlitePool) {
         database_url: "sqlite::memory:".into(),
         host: "127.0.0.1".into(),
         port: 0,
+        web_dist: None,
     };
 
     let context = Arc::new(Context {

@@ -27,8 +27,7 @@ async fn main() {
     let config = Config::from_env().expect("Failed to parse configuration");
 
     // Ensure the database directory exists
-    ensure_db_directory(&config.database_url)
-        .expect("Failed to create database directory");
+    ensure_db_directory(&config.database_url).expect("Failed to create database directory");
 
     // Connect to database and run migrations
     let db = sqlx::sqlite::SqlitePoolOptions::new()
@@ -42,7 +41,10 @@ async fn main() {
         .expect("Failed to run database migrations");
 
     // Build application context (DI container)
-    let context = Arc::new(Context { config: config.clone(), db });
+    let context = Arc::new(Context {
+        config: config.clone(),
+        db,
+    });
 
     // Build router and aggregated OpenAPI spec
     let (router, api) = modules::all_routers(context.clone());
