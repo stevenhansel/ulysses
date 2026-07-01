@@ -26,12 +26,10 @@ services:
     volumes:
       - ulysses_data:/app/data
     restart: unless-stopped
+    # Healthcheck disabled: distroless runtime has no shell or curl.
+    # The API's /api/proxy/health endpoint is the authoritative health check.
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/proxy/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
+      disable: true
 
 volumes:
   ulysses_data:

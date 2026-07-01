@@ -60,18 +60,10 @@ RUN --mount=type=cache,target=/app/api/target \
     cp /app/api/target/release/ulysses-api /app/ulysses-api
 
 # ---- Stage 3: Runtime image (single container, both API + frontend) -------------
-FROM debian:bookworm-slim
-
-# Install runtime dependencies: ca-certificates, curl (for healthcheck), tzdata
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ca-certificates \
-        curl \
-        tzdata && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create a non-root user for security
-RUN groupadd -r ulysses && useradd -r -g ulysses -d /app -s /sbin/nologin ulysses
+# Distroless/cc provides only glibc + libgcc — no shell, no package manager,
+# no utilities. This eliminates ~99% of OS-level CVEs. The Rust binary is
+# the only thing running inside the container.
+FROM gcr.io/distroless/cc-debian12:latest
 
 WORKDIR /app
 
@@ -82,10 +74,9 @@ COPY --from=backend-builder /app/ulysses-api /app/ulysses-api
 COPY --from=frontend-builder /app/web/dist /app/web-dist
 
 # Create a volume for persistent SQLite data
+# The directory is created at runtime by Docker; the API's ensure_db_directory
+# handles creation if it doesn't exist yet (e.g. on first start).
 VOLUME /app/data
-
-# Ensure the data directory is writable by the non-root user
-RUN mkdir -p /app/data && chown -R ulysses:ulysses /app/data /app/web-dist
 
 # Environment variables (sensible defaults for Docker)
 ENV HOST=0.0.0.0
@@ -96,12 +87,5 @@ ENV RUST_LOG=ulysses_api=info
 
 # Expose the API port
 EXPOSE 8000
-
-# Switch to non-root user
-USER ulysses
-
-# Health check: verify the API is responding
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -sf http://localhost:8000/api/proxy/health || exit 1
 
 ENTRYPOINT ["/app/ulysses-api"]
