@@ -185,7 +185,6 @@ jobs:
 
   security-rust:
     name: Security Scan (Rust deps)
-    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -220,7 +219,6 @@ jobs:
 
   security-npm:
     name: Security Scan (npm deps)
-    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
@@ -274,7 +272,6 @@ jobs:
 
   security-docker:
     name: Security Scan (Docker image)
-    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
