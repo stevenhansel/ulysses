@@ -33,8 +33,7 @@ pub async fn list_profiles(
     State(context): State<Arc<Context>>,
 ) -> Result<Json<Vec<ProfileResponse>>, AppError> {
     let profiles = crate::modules::proxy::service::get_all_profiles(&context.db)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     Ok(Json(profiles))
 }
