@@ -45,3 +45,58 @@ Track live inference metrics per-request and over time:
 
 All metrics are exposed via both a web dashboard and a JSON API for integration with external monitoring tools.
 
+## Development
+
+### Prerequisites
+
+- **Rust** 1.88+ (MSRV for ts-rs)
+- **SQLite** (bundled automatically via `libsqlite3-sys`)
+
+### Getting started
+
+```bash
+# Navigate to the API project
+cd api
+
+# Copy the example environment file and adjust as needed
+cp .env.example .env
+
+# Run the application (this also applies pending migrations)
+cargo run
+```
+
+The server starts on `http://localhost:8000` by default (configurable via `HOST` and `PORT` in `.env`).
+
+### Available commands
+
+```bash
+# Check compilation (fast, skips test compilation)
+cargo check
+
+# Run all tests
+cargo test
+
+# Run tests for a specific module
+cargo test -- proxy
+
+# Run with verbose logging
+RUST_LOG=ulysses_api=debug cargo run
+
+# Watch mode (requires cargo-watch)
+cargo watch -x run
+```
+
+### Project structure
+
+The API backend lives under `api/` and follows a **layered architecture** (Controller → Service → Repository) inside feature modules. See [`api/docs/ARCHITECTURE.md`](api/docs/ARCHITECTURE.md) for the full breakdown.
+
+### Code quality
+
+```bash
+# Format
+cargo fmt
+
+# Lint
+cargo clippy -- -D warnings
+```
+
