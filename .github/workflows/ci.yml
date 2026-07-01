@@ -185,6 +185,7 @@ jobs:
 
   security-rust:
     name: Security Scan (Rust deps)
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -213,6 +214,7 @@ jobs:
 
   security-npm:
     name: Security Scan (npm deps)
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -267,6 +269,7 @@ jobs:
 
   security-docker:
     name: Security Scan (Docker image)
+    if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     permissions:
       security-events: write
