@@ -1,8 +1,10 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Router;
 use tokio::signal;
 use tower_http::cors::CorsLayer;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 use utoipa_swagger_ui::SwaggerUi;
@@ -46,12 +48,25 @@ async fn main() {
     let (router, api) = modules::all_routers(context.clone());
 
     // Attach middleware and Swagger UI
-    let app = Router::new()
+    let mut app = Router::new()
         .merge(router)
         .merge(SwaggerUi::new("/docs").url("/api-docs/openapi.json", api))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(context);
+
+    // Conditionally serve the pre-built web UI as a SPA
+    if let Some(web_dist) = &config.web_dist {
+        let web_path: PathBuf = web_dist.into();
+        tracing::info!("Serving web UI from {}", web_path.display());
+        app = app.fallback_service(
+            ServeDir::new(&web_path)
+                .precompressed_gzip()
+                .append_index_html_on_directories(true)
+                // SPA fallback: serve index.html for any unmatched route
+                .fallback(ServeFile::new(web_path.join("index.html"))),
+        );
+    }
 
     // Start server
     let addr = format!("{}:{}", config.host, config.port);

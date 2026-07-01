@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+api/target/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build output (local dev)
+web/dist/
+build/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Docker files (not needed in build context, we reference them explicitly)
+docker/
+
+# Debug logs
+npm-debug.log*
+pnpm-debug.log*
+
+# Rust artifacts (besides target/ which is already excluded)
+api/*.rs.bk

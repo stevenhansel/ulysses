@@ -131,6 +131,68 @@ pnpm lint          # oxlint
 pnpm preview       # Preview production build
 ```
 
+## Docker
+
+Ulysses can be run as a single Docker container that serves both the API and the web UI. The Docker image uses a multi-stage build with separate frontend and backend stages for optimal layer caching — if only the frontend changes, only the frontend stage is rebuilt.
+
+### Pre-built image
+
+Pre-built images are published to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/stevenhansel/ulysses:latest
+```
+
+### Running with Docker
+
+```bash
+# Pull and run the pre-built image
+docker run -d \
+  --name ulysses \
+  -p 8000:8000 \
+  -v ulysses_data:/app/data \
+  ghcr.io/stevenhansel/ulysses:latest
+```
+
+### Running with Docker Compose (recommended)
+
+```bash
+# Using the pre-built image from GHCR
+docker compose up -d
+
+# Or force a local rebuild
+docker compose build --no-cache
+```
+
+Open [http://localhost:8000](http://localhost:8000) to access the web UI. The API is available at `http://localhost:8000/api/...` and the Swagger documentation at `http://localhost:8000/docs`.
+
+### Building locally
+
+```bash
+# Build the image from source
+docker build -f docker/Dockerfile -t ulysses .
+
+# Run the locally-built image
+docker run -d \
+  --name ulysses \
+  -p 8000:8000 \
+  -v ulysses_data:/app/data \
+  ulysses
+```
+
+### Configuration
+
+The container accepts the same environment variables as the API:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOST` | `0.0.0.0` | Bind address |
+| `PORT` | `8000` | HTTP port |
+| `DATABASE_URL` | `sqlite:/app/data/ulysses.db?mode=rwc` | SQLite database path |
+| `RUST_LOG` | `ulysses_api=info` | Logging level |
+
+Persistent data (SQLite database) is stored in the `/app/data` volume.
+
 ### Project structure
 
 ```

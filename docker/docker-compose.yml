@@ -1,0 +1,38 @@
+# =============================================================================
+# Ulysses — Docker Compose
+#
+# Builds and runs Ulysses (API + Web UI) in a single container.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml up -d
+#   docker compose -f docker/docker-compose.yml logs -f
+# =============================================================================
+
+services:
+  ulysses:
+    image: ghcr.io/stevenhansel/ulysses:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ulysses
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DATABASE_URL=sqlite:/app/data/ulysses.db?mode=rwc
+      - WEB_DIST=/app/web-dist
+      - RUST_LOG=ulysses_api=info
+    volumes:
+      - ulysses_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/api/proxy/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ulysses_data:
+    driver: local
