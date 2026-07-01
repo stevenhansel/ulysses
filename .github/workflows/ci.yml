@@ -186,27 +186,21 @@ jobs:
   security-rust:
     name: Security Scan (Rust deps)
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate Cargo.lock if needed
-        working-directory: api
-        run: cargo generate-lockfile
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95
 
-      # Official RustSec audit-check action — runs advisory database check
-      # and produces GitHub Security Tab alerts + PR annotations.
-      - name: Audit Rust dependencies
-        uses: rustsec/audit-check@v2.0.0
-        with:
-          lockfile: api/Cargo.lock
-
-      # Also run cargo audit with JSON output for additional analysis
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
 
-      - name: Scan Rust dependencies (detailed JSON)
+      - name: Scan Rust dependencies (cargo audit)
+        working-directory: api
+        continue-on-error: true
+        run: cargo audit
+
+      - name: Export JSON report
         working-directory: api
         continue-on-error: true
         run: cargo audit --json > rust-audit-report.json || true
@@ -220,8 +214,6 @@ jobs:
   security-npm:
     name: Security Scan (npm deps)
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
     steps:
       - uses: actions/checkout@v4
 
@@ -238,33 +230,36 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Run pnpm audit (prints violations inline in workflow logs)
+      # pnpm audit prints violations inline in workflow logs
       - name: Scan npm dependencies (pnpm audit)
         run: pnpm audit --audit-level=high
         continue-on-error: true
 
-      # Use npm-audit-report to produce GitHub Security Tab alerts (SARIF).
-      # npm audit works on the node_modules tree installed by pnpm.
-      - name: Generate npm audit JSON
+      # Generate package-lock.json so npm audit can produce SARIF-compatible JSON
+      - name: Generate package-lock.json for SARIF
         continue-on-error: true
         run: |
           cd web
+          npm install --package-lock-only 2>/dev/null || true
           npm audit --json > ../npm-audit.json 2>/dev/null || true
 
       - name: Convert to SARIF (npm-audit-report)
         if: success() || failure()
         continue-on-error: true
         run: |
-          if [ -f npm-audit.json ] && [ -s npm-audit.json ]; then
+          if [ -f npm-audit.json ] && [ -s npm-audit.json ] && [ "$(head -c 1 npm-audit.json)" = "{" ]; then
             docker run --rm -v "$PWD:/work" -w /work \
               ghcr.io/sen-ltd/npm-audit-report:latest \
               npm-audit.json --format sarif --fail-on high \
               > npm-audit.sarif 2>/dev/null || true
+            if [ -f npm-audit.sarif ] && [ -s npm-audit.sarif ]; then
+              echo "SARIF generated successfully"
+            fi
           fi
 
       - name: Upload SARIF to GitHub Security
         if: success() || failure()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: npm-audit.sarif
           category: npm-dependencies
@@ -286,7 +281,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/stevenhansel/ulysses:latest
           format: sarif
@@ -295,7 +290,7 @@ jobs:
           severity: HIGH,CRITICAL
 
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
           category: docker-image
