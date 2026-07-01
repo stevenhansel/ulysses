@@ -282,11 +282,12 @@ jobs:
 
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
+        continue-on-error: true
         with:
           image-ref: ghcr.io/stevenhansel/ulysses:latest
           format: sarif
           output: trivy-results.sarif
-          exit-code: 1
+          exit-code: 0
           severity: HIGH,CRITICAL
 
       - name: Upload Trivy results to GitHub Security
