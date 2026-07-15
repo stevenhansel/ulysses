@@ -137,7 +137,7 @@ jobs:
         run: cargo audit --json > rust-audit-report.json || true
 
       - name: Upload Rust audit report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rust-audit-report
           path: rust-audit-report.json
