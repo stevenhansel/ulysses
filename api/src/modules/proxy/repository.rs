@@ -12,9 +12,7 @@ pub struct ProfileRecord {
 }
 
 /// Fetch all profiles from the database.
-pub async fn find_all_profiles(
-    db: &SqlitePool,
-) -> Result<Vec<ProfileRecord>, AppError> {
+pub async fn find_all_profiles(db: &SqlitePool) -> Result<Vec<ProfileRecord>, AppError> {
     let records = sqlx::query_as::<_, ProfileRecord>(
         "SELECT id, name, backend_url, active FROM profiles ORDER BY name",
     )

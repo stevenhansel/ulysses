@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use axum_test::TestServer;
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 use crate::config::Config;
 use crate::context::Context;

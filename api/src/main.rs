@@ -85,7 +85,7 @@ async fn main() {
         .expect("Server error");
 }
 
-/// Parse the SQLite database URL and ensure the parent directory exists.
+/// Parse the `SQLite` database URL and ensure the parent directory exists.
 fn ensure_db_directory(database_url: &str) -> std::io::Result<()> {
     // Strip the `sqlite:` prefix and any query parameters
     let path = database_url
@@ -123,7 +123,7 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 }

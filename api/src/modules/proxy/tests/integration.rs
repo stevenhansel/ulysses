@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use axum_test::TestServer;
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 use crate::config::Config;
 use crate::context::Context;
 use crate::modules;
 
-/// Build a test application with an in-memory SQLite database.
+/// Build a test application with an in-memory `SQLite` database.
 async fn test_app() -> (TestServer, SqlitePool) {
     let db = SqlitePoolOptions::new()
         .connect("sqlite::memory:")
