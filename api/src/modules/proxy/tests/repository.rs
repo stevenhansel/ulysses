@@ -1,9 +1,9 @@
-use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 use crate::modules::proxy::repository;
 
-/// Helper to create an in-memory SQLite pool with migrations applied.
+/// Helper to create an in-memory `SQLite` pool with migrations applied.
 async fn test_db() -> SqlitePool {
     let db = SqlitePoolOptions::new()
         .connect("sqlite::memory:")

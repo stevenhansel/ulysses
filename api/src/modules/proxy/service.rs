@@ -7,9 +7,7 @@ use crate::modules::proxy::repository;
 /// Retrieve all proxy profiles.
 ///
 /// Delegates to the repository layer for data access.
-pub async fn get_all_profiles(
-    db: &SqlitePool,
-) -> Result<Vec<ProfileResponse>, AppError> {
+pub async fn get_all_profiles(db: &SqlitePool) -> Result<Vec<ProfileResponse>, AppError> {
     let records = repository::find_all_profiles(db).await?;
 
     let profiles = records

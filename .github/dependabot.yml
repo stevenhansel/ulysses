@@ -1,0 +1,29 @@
+# =============================================================================
+# Dependabot — automated dependency updates
+#
+# Keeps Rust crate dependencies and GitHub Actions runners up-to-date by
+# opening pull requests automatically.
+# =============================================================================
+
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/api"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(ci)"

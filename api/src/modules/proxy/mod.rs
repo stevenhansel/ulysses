@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use crate::context::Context;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Serialize;
-use crate::context::Context;
 
 pub mod controller_http;
 pub mod controller_ws;
@@ -32,7 +32,9 @@ pub fn router(_context: Arc<Context>) -> Router<Arc<Context>> {
     ),
 )]
 pub async fn health_check() -> Json<HealthResponse> {
-    Json(HealthResponse { status: "ok".into() })
+    Json(HealthResponse {
+        status: "ok".into(),
+    })
 }
 
 #[derive(Serialize, utoipa::ToSchema)]

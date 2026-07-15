@@ -7,7 +7,7 @@ use crate::context::Context;
 
 mod proxy;
 
-/// Top-level OpenAPI specification for Ulysses API.
+/// Top-level `OpenAPI` specification for Ulysses API.
 ///
 /// When adding a new module, register its handlers under `paths(...)`
 /// and its types under `components(schemas(...))`.
@@ -35,14 +35,12 @@ mod proxy;
 )]
 pub struct ApiDoc;
 
-/// Aggregate all module sub-routers and return the OpenAPI doc.
-pub fn all_routers(
-    context: Arc<Context>,
-) -> (Router<Arc<Context>>, utoipa::openapi::OpenApi) {
+/// Aggregate all module sub-routers and return the `OpenAPI` doc.
+#[allow(clippy::needless_pass_by_value)]
+pub fn all_routers(context: Arc<Context>) -> (Router<Arc<Context>>, utoipa::openapi::OpenApi) {
     let proxy_router = proxy::router(context.clone());
 
-    let router = Router::new()
-        .merge(proxy_router);
+    let router = Router::new().merge(proxy_router);
 
     let api = ApiDoc::openapi();
 

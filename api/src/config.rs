@@ -15,6 +15,9 @@ impl Config {
     /// Parse configuration from environment variables.
     /// Expects `DATABASE_URL`, `HOST`, and `PORT` to be set.
     /// Falls back to defaults for any unset variable.
+    ///
+    /// # Errors
+    /// Returns `Err` if `PORT` is set to a value that cannot be parsed as a valid `u16`.
     pub fn from_env() -> Result<Self, String> {
         let database_url = std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "sqlite:./data/ulysses.db?mode=rwc".into());
@@ -22,7 +25,7 @@ impl Config {
         let port: u16 = std::env::var("PORT")
             .unwrap_or_else(|_| "8000".into())
             .parse()
-            .map_err(|e| format!("PORT must be a valid u16: {}", e))?;
+            .map_err(|e| format!("PORT must be a valid u16: {e}"))?;
 
         let web_dist = std::env::var("WEB_DIST").ok();
 

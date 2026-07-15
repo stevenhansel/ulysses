@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -32,8 +32,7 @@ pub struct ProfileResponse {
 pub async fn list_profiles(
     State(context): State<Arc<Context>>,
 ) -> Result<Json<Vec<ProfileResponse>>, AppError> {
-    let profiles = crate::modules::proxy::service::get_all_profiles(&context.db)
-        .await?;
+    let profiles = crate::modules::proxy::service::get_all_profiles(&context.db).await?;
 
     Ok(Json(profiles))
 }

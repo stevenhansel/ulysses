@@ -22,6 +22,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Tooling
+.hindsight/
+
 # Debug logs
 npm-debug.log*
 pnpm-debug.log*
