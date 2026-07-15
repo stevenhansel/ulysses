@@ -36,5 +36,6 @@ docker/
 npm-debug.log*
 pnpm-debug.log*
 
-# Rust artifacts (besides target/ which is already excluded)
+# Rust artifacts
 api/*.rs.bk
+target/

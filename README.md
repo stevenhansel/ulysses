@@ -23,8 +23,6 @@ Ulysses acts as a smart gateway. When a request arrives:
 - **Model is not loaded & no active requests** → the model is swapped in immediately, then the request is processed.
 - **Model is not loaded & a request is in progress** → the request is queued. As soon as the active request finishes, Ulysses hot-swaps the model and processes the queued request automatically.
 
-This means you never need to manually unload/reload models. Ulysses handles the switching so you can treat your VRAM-constrained setup like a multi-model server.
-
 ### Hardware Monitoring
 
 Real-time dashboards for your system's hardware:
@@ -43,175 +41,165 @@ Track live inference metrics per-request and over time:
 - **Time to first token** (TTFT)
 - **Request latency** — queue wait time + inference time
 
-All metrics are exposed via both a web dashboard and a JSON API for integration with external monitoring tools.
-
 ## Development
 
 ### Prerequisites
 
-- **Rust** 1.88+ (MSRV for ts-rs)
-- **SQLite** (bundled automatically via `libsqlite3-sys`)
-- **Node.js** 22+ and **pnpm** 11+
+- **Rust** 1.97.0 (via `rustup`)
+- **cargo-leptos** (for the development server)
+- **wasm32-unknown-unknown target** (for WASM hydration builds)
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install cargo-leptos
+```
 
 ### Getting started
 
-#### Backend (API)
+The project is a single Rust crate with both the API server and the Leptos frontend in `src/`.
 
 ```bash
-# Navigate to the API project
-cd api
-
-# Copy the example environment file and adjust as needed
-cp .env.example .env
-
-# Run the application (this also applies pending migrations)
-cargo run
+# Start the development server (with hot-reload)
+cargo leptos serve
 ```
 
-The server starts on `http://localhost:8000` by default (configurable via `HOST` and `PORT` in `.env`).
+Open [http://localhost:8000](http://localhost:8000) in your browser.
 
-#### Frontend (Web UI)
+`cargo leptos serve` handles everything — the Rust server, WASM hydration builds, and Tailwind CSS compilation — all with automatic hot-reload on changes.
 
-```bash
-# Install dependencies from the monorepo root
-pnpm install
-
-# Start the Vite dev server (proxies /api to localhost:8000)
-pnpm web:dev
-```
-
-The web UI is served at `http://localhost:5173` with hot module replacement. API requests to `/api/*` are automatically proxied to the Rust backend at `http://localhost:8000` in development.
+> **Note:** No Node.js installation is required. `cargo-leptos` handles CSS compilation via Lightning CSS.
 
 ### Available commands
 
-#### Backend (`api/`)
-
 ```bash
-# Check compilation (fast, skips test compilation)
+# Check SSR compilation (fast)
 cargo check
 
-# Run all tests
+# Check WASM compilation
+cargo check --target wasm32-unknown-unknown --features hydrate --no-default-features
+
+# Run all tests (23 tests across 6 suites)
 cargo test
-
-# Run tests for a specific module
-cargo test -- proxy
-
-# Run with verbose logging
-RUST_LOG=ulysses_api=debug cargo run
-
-# Watch mode (requires cargo-watch)
-cargo watch -x run
 
 # Format
 cargo fmt
 
 # Lint
-cargo clippy -- -D warnings
+cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-#### Frontend (`web/`)
-
-From the monorepo root, use the workspace scripts:
+### Build for production
 
 ```bash
-pnpm web:dev       # Start Vite dev server (HMR at localhost:5173)
-pnpm web:build     # Type-check + production build
-pnpm web:test      # Run all tests once
-pnpm web:lint      # Run oxlint
+# Production build (SSR binary + WASM/JS/CSS assets)
+cargo leptos build --release
 ```
 
-Or from the `web/` directory directly:
+The SSR binary is at `target/release/ulysses` (approximately 20 MB).
+The WASM/JS/CSS assets are at `site/pkg/`.
+
+## Project structure
+
+```
+ulysses/
+├── src/
+│   ├── main.rs              # Leptos + Axum integrated entrypoint
+│   ├── main_wasm.rs         # WASM hydration entry point
+│   ├── lib.rs               # Module re-exports (feature-gated)
+│   ├── config.rs            # Config from env (HOST, PORT, DATABASE_URL)
+│   ├── context.rs           # DI container (AppState, Context)
+│   ├── error.rs             # AppError → IntoResponse
+│   ├── types.rs             # Shared types (serde + conditional utoipa)
+│   ├── api/                 # REST API handlers + OpenAPI
+│   │   ├── mod.rs           # All routers + aggregated OpenAPI spec
+│   │   └── proxy/           # Proxy module
+│   │       ├── mod.rs       # Router + health check
+│   │       ├── controller_http.rs
+│   │       ├── controller_ws.rs
+│   │       ├── service.rs
+│   │       ├── repository.rs
+│   │       └── tests/       # Integration, service, repository, controller tests
+│   ├── web/                 # Leptos frontend
+│   │   ├── mod.rs           # UlyssesShell, App, NotFoundPage, router
+│   │   ├── server_fns.rs    # #[server] function declarations
+│   │   ├── routes/          # Page components (home, dashboard, settings)
+│   │   ├── components/      # UI primitives + layout components
+│   │   └── domain/          # Domain-specific feature components
+│   └── models/              # Database models
+│
+├── style/
+│   └── main.css             # Tailwind v4 + CSS theme variables
+├── site/pkg/                 # Compiled WASM/JS/CSS assets (build output)
+├── migrations/               # SQLite database migrations
+├── docs/
+│   └── ARCHITECTURE.md       # Architecture documentation
+├── docker/
+│   ├── Dockerfile            # Multi-stage build (Rust 1.97 → distroless)
+│   └── docker-compose.yml    # Docker Compose configuration
+├── .github/workflows/
+│   └── ci.yml               # CI/CD: lint, test, docker build & push
+├── tests/                    # Integration tests
+│   ├── web_routes.rs         # SSR rendering tests (14)
+│   └── web_server_fns.rs     # Server function tests (3)
+├── Cargo.toml
+├── rust-toolchain.toml       # Pinned to 1.97.0
+└── .cargo/
+    └── config.toml           # WASM runner config
+```
+
+## API documentation
+
+Once the server is running, the Swagger UI is available at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+## Testing
 
 ```bash
-pnpm dev           # Vite dev server
-pnpm build         # tsc -b && vite build
-pnpm test          # Vitest single run
-pnpm test:watch    # Vitest watch mode
-pnpm lint          # oxlint
-pnpm preview       # Preview production build
+# Run all tests
+cargo test
+
+# Run specific test suites
+cargo test --test web_routes       # SSR rendering tests
+cargo test --test web_server_fns   # Server function tests
+
+# Run with output
+cargo test -- --nocapture
 ```
+
+### Test suites (23 tests)
+
+| Suite | Location | Tests | What it covers |
+|---|---|---|---|
+| SSR rendering | `tests/web_routes.rs` | 14 | Leptos page components render correct HTML |
+| Server functions | `tests/web_server_fns.rs` | 3 | `#[server]` fns with in-memory SQLite |
+| Integration | `src/api/proxy/tests/integration.rs` | 2 | Full HTTP stack with axum-test |
+| Service | `src/api/proxy/tests/service.rs` | 1 | Service layer with in-memory DB |
+| Repository | `src/api/proxy/tests/repository.rs` | 1 | Repository layer with in-memory DB |
+| Controller HTTP | `src/api/proxy/tests/controller_http.rs` | 2 | HTTP controller level |
 
 ## Docker
 
-Ulysses can be run as a single Docker container that serves both the API and the web UI. The Docker image uses a multi-stage build with separate frontend and backend stages for optimal layer caching — if only the frontend changes, only the frontend stage is rebuilt.
-
-### Pre-built image
-
-Pre-built images are published to GitHub Container Registry:
-
 ```bash
-docker pull ghcr.io/stevenhansel/ulysses:latest
-```
-
-### Running with Docker
-
-```bash
-# Pull and run the pre-built image
-docker run -d \
-  --name ulysses \
-  -p 8000:8000 \
-  -v ulysses_data:/app/data \
-  ghcr.io/stevenhansel/ulysses:latest
-```
-
-### Running with Docker Compose (recommended)
-
-```bash
-# Using the pre-built image from GHCR
-docker compose up -d
-
-# Or force a local rebuild
-docker compose build --no-cache
-```
-
-Open [http://localhost:8000](http://localhost:8000) to access the web UI. The API is available at `http://localhost:8000/api/...` and the Swagger documentation at `http://localhost:8000/docs`.
-
-### Building locally
-
-```bash
-# Build the image from source
+# Build the Docker image
 docker build -f docker/Dockerfile -t ulysses .
 
-# Run the locally-built image
+# Run (with persistent data volume)
 docker run -d \
-  --name ulysses \
-  -p 8000:8000 \
-  -v ulysses_data:/app/data \
-  ulysses
+    --name ulysses \
+    -p 8000:8000 \
+    -v ulysses_data:/app/data \
+    ulysses
+
+# Or using docker compose
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 ### Configuration
 
-The container accepts the same environment variables as the API:
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HOST` | `0.0.0.0` | Bind address |
-| `PORT` | `8000` | HTTP port |
 | `DATABASE_URL` | `sqlite:/app/data/ulysses.db?mode=rwc` | SQLite database path |
-| `RUST_LOG` | `ulysses_api=info` | Logging level |
-
-Persistent data (SQLite database) is stored in the `/app/data` volume.
-
-### Project structure
-
-```
-ulysses/
-├── api/             # Rust API backend (axum, SQLite)
-│   ├── src/         # Layered architecture (Controller → Service → Repository)
-│   ├── migrations/  # SQLite database migrations
-│   └── docs/        # Architecture & design docs
-│
-├── web/             # React frontend (Vite, TanStack Router)
-│   ├── src/         # Routes, features, components, hooks, lib
-│   ├── tests/       # Test infrastructure (MSW, Vitest setup)
-│   └── docs/        # Architecture & design docs
-│
-├── package.json     # Root workspace scripts
-└── pnpm-workspace.yaml
-```
-
-The API backend follows a **layered architecture** (Controller → Service → Repository) inside feature modules. See [`api/docs/ARCHITECTURE.md`](api/docs/ARCHITECTURE.md) for the full breakdown.
-
-The web frontend uses a **feature-based layered architecture** (Routes → Features → Infrastructure → Shared). See [`web/docs/ARCHITECTURE.md`](web/docs/ARCHITECTURE.md) for the full breakdown.
-
+| `RUST_LOG` | `ulysses=info` | Logging level |
+| `LEPTOS_SITE_ADDR` | `0.0.0.0:8000` | Server bind address |
+| `LEPTOS_SITE_ROOT` | `/app/site` | Site root directory |
+| `LEPTOS_SITE_PKG_DIR` | `/app/site/pkg` | WASM assets directory |
+| `LEPTOS_OUTPUT_NAME` | `ulysses` | Output binary name |

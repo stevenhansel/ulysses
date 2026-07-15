@@ -18,11 +18,12 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - HOST=0.0.0.0
-      - PORT=8000
       - DATABASE_URL=sqlite:/app/data/ulysses.db?mode=rwc
-      - WEB_DIST=/app/web-dist
-      - RUST_LOG=ulysses_api=info
+      - LEPTOS_SITE_ADDR=0.0.0.0:8000
+      - LEPTOS_SITE_ROOT=/app/site
+      - LEPTOS_SITE_PKG_DIR=/app/site/pkg
+      - LEPTOS_OUTPUT_NAME=ulysses
+      - RUST_LOG=ulysses=info
     volumes:
       - ulysses_data:/app/data
     restart: unless-stopped

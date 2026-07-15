@@ -1,0 +1,133 @@
+[package]
+name = "ulysses"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.0"
+description = "Ulysses — AI proxy server with profile management"
+license = "MIT"
+repository = "https://github.com/stevenhansel/ulysses"
+readme = "README.md"
+keywords = ["llm", "proxy", "api", "axum", "leptos"]
+categories = ["web-programming::http-server"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["ssr"]
+ssr = [
+    "leptos/ssr",
+    "leptos_axum",
+    "leptos_meta/ssr",
+    "leptos_router/ssr",
+    "dep:axum",
+    "dep:tokio",
+    "dep:tower-http",
+    "dep:tower",
+    "dep:sqlx",
+    "dep:dotenvy",
+    "dep:tracing-subscriber",
+    "dep:utoipa",
+    "dep:utoipa-axum",
+    "dep:utoipa-swagger-ui",
+    "uuid/v4",
+]
+hydrate = [
+    "leptos/hydrate",
+    "dep:console_error_panic_hook",
+    "dep:wasm-bindgen",
+]
+
+[[bin]]
+name = "ulysses"
+path = "src/main.rs"
+
+[[bin]]
+name = "ulysses-hydrate"
+path = "src/main_wasm.rs"
+
+[dependencies]
+# Leptos (frontend)
+leptos = { version = "0.8" }
+leptos_meta = { version = "0.8" }
+leptos_router = { version = "0.8" }
+leptos_axum = { version = "0.8", optional = true }
+
+# Rust/UI ecosystem
+leptos_ui = "0.3"
+server_fn_macro_default = "0.8"
+tw_merge = "0.1"
+icons = { version = "0.18", features = ["leptos"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utilities (WASM-compatible)
+tracing = "0.1"
+uuid = { version = "1", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+strum = "0.28.0"
+
+# WASM hydration (optional, gated behind `hydrate` feature)
+console_error_panic_hook = { version = "0.1", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+
+# Web framework
+axum = { version = "0.8", features = ["ws"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+tower-http = { version = "0.7", features = ["cors", "trace", "compression-gzip", "fs"], optional = true }
+tower = { version = "0.5", optional = true }
+
+# Database
+sqlx = { version = "0.9", features = ["sqlite", "runtime-tokio", "migrate"], optional = true }
+
+# Utilities
+dotenvy = { version = "0.15", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+
+# API documentation
+utoipa = { version = "5", features = ["axum_extras"], optional = true }
+utoipa-axum = { version = "0.2", optional = true }
+utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
+
+[dev-dependencies]
+axum-test = "21"
+serial_test = "3"
+tokio-test = "0.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+cargo = "warn"
+pedantic = { level = "warn", priority = -1 }
+multiple-crate-versions = { level = "allow", priority = 1 }
+# Component functions returning `impl IntoView` are always used in view! macros
+must_use_candidate = { level = "allow", priority = 1 }
+
+[package.metadata.leptos]
+bin-target = "ulysses"
+bin-features = ["ssr"]
+bin-default-features = false
+lib-features = ["hydrate"]
+lib-default-features = false
+lib-profile-release = "wasm-release"
+site-root = "site"
+site-pkg-dir = "pkg"
+output-name = "ulysses"
+site-addr = "127.0.0.1:8000"
+reload-port = 3001
